@@ -220,21 +220,28 @@ async function commitNewEventToCsv(token, csvPath){
   const sha = js.sha;
   const content = atob(js.content.replace(/\n/g,""));
   const evt = readForm();
-  const p = evt.extendedProps || {};
-  const row = [
-    p["Event Name"] || "",
-    p["Category"] || "",
-    p["Date"] || "",
-    p["Time"] || "",
-    p["Venue"] || "",
-    p["Organizer"] || "",
-    p["Stakeholders"] || "",
-    p["Deliverables"] || "",
-    p["Promotion Plan"] || "",
-    p["Budget/Support Required"] || "",
-    p["Status"] || "",
-    p["Notes"] || ""
-  ].map(x=> (""" + str_replace_quotes(x) + """)).join(",");
+ const sanitize = (v) => {
+  if (!v) return "";
+  return String(v).replace(/"/g, '""'); // escape quotes for CSV
+};
+
+const p = evt.extendedProps || {};
+const row = [
+  p["Event Name"] || "",
+  p["Category"] || "",
+  p["Date"] || "",
+  p["Time"] || "",
+  p["Venue"] || "",
+  p["Organizer"] || "",
+  p["Stakeholders"] || "",
+  p["Deliverables"] || "",
+  p["Promotion Plan"] || "",
+  p["Budget/Support Required"] || "",
+  p["Status"] || "",
+  p["Notes"] || ""
+]
+.map(x => `"${sanitize(x)}"`)  // ✅ wrap in quotes properly
+.join(",");
   const newContent = content.trim() + "\n" + row + "\n";
   const payload = { message: "Add event via web UI: " + (p["Event Name"] || ""), content: btoa(unescape(encodeURIComponent(newContent))), sha: sha, branch: config.branch };
   const upd = await fetch(apiUrl, { method: 'PUT', headers: {...headers, 'Content-Type':'application/json'}, body: JSON.stringify(payload) });
