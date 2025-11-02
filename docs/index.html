@@ -10,387 +10,167 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #111; }
-.header { background:#f5f5f5; padding:12px 16px; display:flex; gap:12px; align-items:center; }
-.header h1 { margin:0; font-size:18px; }
-.controls { margin-left:auto; display:flex; gap:8px; align-items:center; }
-#calendar { max-width:1100px; margin:18px auto; padding:8px; }
-#tableView { max-width:1100px; margin:18px auto; padding:8px; display:none; }
-.filterRow { display:flex; gap:8px; align-items:center; }
-.btn { padding:6px 10px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
-.btn.primary { background:#0066cc; color:#fff; border-color:#0066cc; }
-.event-row { border-bottom:1px solid #eee; padding:8px 0; }
-.form-row { display:flex; gap:8px; flex-wrap:wrap; }
-input, select, textarea { padding:6px; border:1px solid #ccc; border-radius:4px; }
-.small { width:120px; }
-.flex { display:flex; gap:8px; align-items:center; }
-#addForm { max-width:1100px; margin:18px auto; padding:12px; border:1px solid #eee; border-radius:6px; }
-.color-legend { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.legend-item { display:flex; gap:6px; align-items:center; }
-.legend-swatch { width:14px; height:14px; border-radius:3px; border:1px solid #ccc; }
-.search { padding:6px; border:1px solid #ccc; border-radius:4px; }
+body{font-family:Arial;margin:0;padding:0;background:#fff;color:#111}
+.header{background:#f5f5f5;padding:12px 16px;display:flex;gap:12px;align-items:center}
+#calendar,#tableView{max-width:1100px;margin:18px auto;padding:8px}
+#tableView{display:none}
+.btn{padding:6px 10px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.btn.primary{background:#0066cc;color:#fff;border-color:#0066cc}
+.search{padding:6px;border:1px solid #ccc;border-radius:4px}
+.legend-swatch{width:14px;height:14px;border-radius:3px;border:1px solid #ccc}
 </style>
 </head>
-<body>
 
+<body>
 <div class="header">
   <h1>Ramaguru Radhakrishnan's Event Calendar</h1>
   <div class="controls">
-    <label for="yearSelect">Year</label>
+    <label>Year</label>
     <select id="yearSelect" class="btn small"></select>
     <button id="toggleView" class="btn">Switch to Table</button>
     <button id="downloadIcs" class="btn">Download ICS</button>
-    <button id="downloadMermaid" class="btn">Download Gantt (Mermaid)</button>
+    <button id="downloadMermaid" class="btn">Download Gantt</button>
     <button id="openAdd" class="btn primary">Add Event</button>
   </div>
 </div>
 
-<div style="max-width:1100px;margin:12px auto;padding:0 8px;">
-  <div class="filterRow">
-    <input id="searchBox" class="search" placeholder="Search title, venue, organizer...">
-    <select id="categoryFilter" class="btn small">
-      <option value="">All Categories</option>
-    </select>
-    <select id="organizerFilter" class="btn small">
-      <option value="">All Organizers</option>
-    </select>
-    <label>Color legend:</label>
-    <div id="legend" class="color-legend"></div>
-  </div>
+<div style="max-width:1100px;margin:12px auto;">
+  <input id="searchBox" class="search" placeholder="Search">
+  <select id="categoryFilter" class="btn small"><option value="">All Categories</option></select>
+  <select id="organizerFilter" class="btn small"><option value="">All Organizers</option></select>
+  <div id="legend" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
 </div>
 
 <div id="calendar"></div>
+<div id="tableView"><div id="tableContent"></div></div>
 
-<div id="tableView">
-  <div id="tableContent"></div>
-</div>
+<div id="addForm" style="display:none;max-width:1100px;margin:12px auto;border:1px solid #ccc;padding:10px;">
+  <input id="ev_name" placeholder="Event Name">
+  <input id="ev_date" placeholder="Date YYYY-MM-DD">
+  <input id="ev_time" placeholder="Time HH:MM">
+  <input id="ev_category" placeholder="Category">
+  <input id="ev_venue" placeholder="Venue">
+  <input id="ev_organizer" placeholder="Organizer">
+  <input id="ev_stakeholders" placeholder="Stakeholders">
+  <input id="ev_status" placeholder="Status">
 
-<!-- Add event form -->
-<div id="addForm" style="display:none;">
-  <h3>Add Event (will attempt to commit to CSV if you provide token)</h3>
-  <div class="form-row">
-    <input id="ev_name" placeholder="Event Name" style="flex:2">
-    <input id="ev_date" placeholder="Date (YYYY-MM-DD)" class="small">
-    <input id="ev_time" placeholder="Time (HH:MM)">
-    <input id="ev_category" placeholder="Category" class="small">
-    <input id="ev_venue" placeholder="Venue">
-  </div>
-  <div class="form-row" style="margin-top:8px;">
-    <input id="ev_organizer" placeholder="Organizer">
-    <input id="ev_stakeholders" placeholder="Stakeholders">
-    <input id="ev_status" placeholder="Status" class="small">
-  </div>
-  <div style="margin-top:8px;">
-    <textarea id="ev_notes" placeholder="Notes" style="width:100%;height:80px"></textarea>
-  </div>
-  <div style="margin-top:8px; display:flex; gap:8px;">
-    <input id="gh_token" placeholder="GitHub Personal Access Token (optional)" style="flex:1">
-    <button id="saveLocal" class="btn">Add Locally</button>
-    <button id="saveGit" class="btn primary">Commit to GitHub (CSV)</button>
-    <button id="closeAdd" class="btn">Close</button>
-  </div>
-  <div style="margin-top:8px;font-size:12px;color:#666">
-    To use commit feature: provide a token with `repo` scope for private repos or `public_repo` for public. The form will fetch the CSV, append a row, and update file via GitHub API. This is client-side and exposes token to your browser session. For production use a server-side approach.
-  </div>
+  <!-- missing fields added -->
+  <input id="ev_deliverables" placeholder="Deliverables">
+  <input id="ev_promo" placeholder="Promotion Plan">
+  <input id="ev_budget" placeholder="Budget/Support">
+
+  <textarea id="ev_notes" placeholder="Notes"></textarea><br>
+  <input id="gh_token" placeholder="GitHub Token (optional)" style="width:60%">
+  <button id="saveLocal" class="btn">Add Locally</button>
+  <button id="saveGit" class="btn primary">Commit to GitHub</button>
+  <button id="closeAdd" class="btn">Close</button>
 </div>
 
 <script>
-const configUrl = "../config.json";
-let config = null;
+const config = {
+  github_user:"ramagururadhakrishnan",
+  github_repo:"ramaguru-calendar",
+  branch:"main",
+  csv_paths:["data/2025-events.csv","data/2026-events.csv"],
+  default_year:"2025"
+};
 
-async function loadConfig(){
-  try{
-    const res = await fetch(configUrl);
-    if(!res.ok) throw new Error("config not found");
-    config = await res.json();
-  }catch(e){
-    config = {
-      github_user: "ramagururadhakrishnan",
-      github_repo: "ramaguru-calendar",
-      branch: "main",
-      csv_paths: ["data/2025-events.csv","data/2026-events.csv"],
-      default_year: "2025"
-    };
-  }
+let allEvents=[],calendar=null,categoryColors={};
+const defaultColors=["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f"];
+
+function rawCsvUrl(p){return `https://raw.githubusercontent.com/${config.github_user}/${config.github_repo}/${config.branch}/${p}`;}
+
+async function loadCsv(path){
+  const r=await fetch(rawCsvUrl(path));
+  const t=await r.text();
+  return Papa.parse(t,{header:true,skipEmptyLines:true}).data;
 }
 
-function rawCsvUrl(path){
-  return `https://raw.githubusercontent.com/${config.github_user}/${config.github_repo}/${config.branch}/${path}`;
-}
-
-let allEvents = [];
-let calendar = null;
-let categoryColors = {};
-const defaultColors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f"];
-
-function buildColorForCategory(cat){
-  if(!cat) return "#999";
-  if(categoryColors[cat]) return categoryColors[cat];
-  const idx = Object.keys(categoryColors).length % defaultColors.length;
-  categoryColors[cat] = defaultColors[idx];
+function buildColor(cat){
+  if(!categoryColors[cat]) categoryColors[cat]=defaultColors[Object.keys(categoryColors).length%defaultColors.length];
   return categoryColors[cat];
 }
 
-function renderLegend(){
-  const legend = document.getElementById("legend");
-  legend.innerHTML = "";
-  for(const k of Object.keys(categoryColors)){
-    const item = document.createElement("div");
-    item.className="legend-item";
-    item.innerHTML = `<div class="legend-swatch" style="background:${categoryColors[k]}"></div><div>${k}</div>`;
-    legend.appendChild(item);
-  }
+function legend(){const L=document.getElementById("legend");L.innerHTML="";Object.keys(categoryColors).forEach(c=>L.innerHTML+=`<div><span class="legend-swatch" style="background:${categoryColors[c]}"></span> ${c}</div>`);}
+
+function table(ev){
+  let h="<table border=1 style='width:100%;border-collapse:collapse'><tr><th>Date</th><th>Name</th><th>Category</th><th>Organizer</th><th>Status</th></tr>";
+  ev.forEach(e=>{const p=e.extendedProps;h+=`<tr><td>${p.Date}</td><td>${p["Event Name"]}</td><td>${p.Category}</td><td>${p.Organizer}</td><td>${p.Status}</td></tr>`});
+  h+="</table>";document.getElementById("tableContent").innerHTML=h;
 }
 
-function renderTable(events){
-  const div = document.getElementById("tableView");
-  let html = `
-    <table border="1" style="width:100%; border-collapse:collapse;">
-      <tr>
-        <th>Date</th><th>Event</th><th>Category</th><th>Organizer</th><th>Status</th>
-      </tr>
-  `;
-  events.forEach(e => {
-    const p = e.extendedProps;
-    html += `<tr>
-      <td>${p.Date || ""}</td>
-      <td>${p["Event Name"] || ""}</td>
-      <td>${p.Category || ""}</td>
-      <td>${p.Organizer || ""}</td>
-      <td>${p.Status || ""}</td>
-    </tr>`;
-  });
-  html += `</table>`;
-  div.innerHTML = html;
-}
-
-function applyFilters(events){
-  const txt = document.getElementById("searchBox").value.toLowerCase();
-  const cat = document.getElementById("categoryFilter").value;
-  const org = document.getElementById("organizerFilter").value;
-
-  return events.filter(e => {
-    const p = e.extendedProps || {};
-    if(cat && (p.Category||"") !== cat) return false;
-    if(org && (p.Organizer||"") !== org) return false;
-    if(txt){
-      const hay = (e.title + " " + JSON.stringify(p)).toLowerCase();
-      if(!hay.includes(txt)) return false;
-    }
-    return true;
+function filter(){
+  const s=document.getElementById("searchBox").value.toLowerCase();
+  const c=document.getElementById("categoryFilter").value;
+  const o=document.getElementById("organizerFilter").value;
+  return allEvents.filter(e=>{
+    const p=e.extendedProps;
+    return (!c||p.Category===c)&&(!o||p.Organizer===o) && (e.title+" "+JSON.stringify(p)).toLowerCase().includes(s);
   });
 }
 
-function populateFilters(events){
-  const cats = new Set();
-  const orgs = new Set();
-  events.forEach(e=>{
-    const p=e.extendedProps||{};
-    if(p.Category) cats.add(p.Category);
-    if(p.Organizer) orgs.add(p.Organizer);
-  });
-
-  document.getElementById("categoryFilter").innerHTML =
-    '<option value="">All Categories</option>' +
-    Array.from(cats).sort().map(c=>`<option value="${c}">${c}</option>`).join("");
-
-  document.getElementById("organizerFilter").innerHTML =
-    '<option value="">All Organizers</option>' +
-    Array.from(orgs).sort().map(o=>`<option value="${o}">${o}</option>`).join("");
-}
-
-async function loadCsvForYear(path){
-  try{
-    const r = await fetch(path);
-    if(r.ok){
-      const txt = await r.text();
-      return Papa.parse(txt, {header:true, skipEmptyLines:true}).data;
-    }
-    throw new Error("relative load fail");
-  }catch(e){
-    const url = rawCsvUrl(path);
-    const r2 = await fetch(url);
-    if(!r2.ok) throw new Error("Fetch CSV failed " + url);
-    const txt2 = await r2.text();
-    return Papa.parse(txt2, {header:true, skipEmptyLines:true}).data;
-  }
-} // ✅ CLOSED properly
-
-async function buildUI(){
-  await loadConfig();
-
-  const yearSel = document.getElementById("yearSelect");
-  yearSel.innerHTML = "";
-  config.csv_paths.forEach(p=>{
-    const yr = (p.match(/(\d{4})/)||[])[0] || p;
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.text = yr;
-    yearSel.appendChild(opt);
-  });
-
-  yearSel.value = config.csv_paths.find(p=>p.includes(config.default_year));
-
-  async function reload(){
-    const path = yearSel.value;
-    const data = await loadCsvForYear(path);
-
-    allEvents = data.filter(r=> r.Date && r["Event Name"]).map(r=> ({
-      title: r["Event Name"],
-      start: r.Date,
-      extendedProps: r,
-      color: buildColorForCategory(r.Category)
-    }));
-
-    renderLegend();
-    populateFilters(allEvents);
-    refreshViews();
-  }
-
-  // UI Handlers
-  yearSel.addEventListener("change", reload);
-  ["searchBox","categoryFilter","organizerFilter"].forEach(id=>{
-    document.getElementById(id).addEventListener("input", ()=> refreshViews());
-  });
-
-  document.getElementById("toggleView").addEventListener("click",()=>{
-    const cv = document.getElementById("calendar");
-    const tv = document.getElementById("tableView");
-    if(cv.style.display==="none"){
-      cv.style.display="";
-      tv.style.display="none";
-      document.getElementById("toggleView").innerText="Switch to Table";
-    }else{
-      cv.style.display="none";
-      tv.style.display="";
-      document.getElementById("toggleView").innerText="Switch to Calendar";
-    }
-  });
-
-  document.getElementById("openAdd").addEventListener("click",()=> document.getElementById("addForm").style.display="");
-  document.getElementById("closeAdd").addEventListener("click",()=> document.getElementById("addForm").style.display="none");
-
-  document.getElementById("saveLocal").addEventListener("click",()=>{
-    const e = readForm();
-    allEvents.push(e);
-    refreshViews();
-    alert("Added locally. Use Commit to GitHub to persist.");
-  });
-
-  document.getElementById("saveGit").addEventListener("click",async ()=>{
-    const token = document.getElementById("gh_token").value.trim();
-    if(!token){ alert("Enter GitHub token"); return; }
-    await commitNewEventToCsv(token, yearSel.value);
-    alert("Committed. Reloading...");
-    setTimeout(()=> location.reload(),1200);
-  });
-
-  document.getElementById("downloadIcs").addEventListener("click",()=>{
-    const evs = applyFilters(allEvents);
-    downloadText("events.ics", eventsToIcs(evs));
-  });
-
-  document.getElementById("downloadMermaid").addEventListener("click",()=>{
-    const evs = applyFilters(allEvents);
-    downloadText("events-gantt.md", buildMermaidGantt(evs));
-  });
-
-  await reload();
-
-  calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
-    initialView: "dayGridMonth",
-    events: allEvents,
-    eventClick: info=>{
-      const p = info.event.extendedProps || {};
-      alert([
-        "Event: " + info.event.title,
-        "Date: " + p.Date,
-        "Time: " + (p.Time||""),
-        "Category: " + (p.Category||""),
-        "Venue: " + (p.Venue||""),
-        "Organizer: " + (p.Organizer||""),
-        "Notes: " + (p.Notes||"")
-      ].join("\n"));
-    }
-  });
-
-  calendar.render();
-}
-
-function refreshViews(){
-  const filtered = applyFilters(allEvents);
-  calendar.removeAllEvents();
-  filtered.forEach(e=> calendar.addEvent(e));
-  renderTable(filtered);
+function refresh(){
+  const f=filter();
+  calendar.removeAllEvents();f.forEach(e=>calendar.addEvent(e));
+  table(f);
 }
 
 function readForm(){
-  const p = {
-    "Event Name": document.getElementById("ev_name").value,
-    "Date": document.getElementById("ev_date").value,
-    "Time": document.getElementById("ev_time").value,
-    "Category": document.getElementById("ev_category").value,
-    "Venue": document.getElementById("ev_venue").value,
-    "Organizer": document.getElementById("ev_organizer").value,
-    "Stakeholders": document.getElementById("ev_stakeholders").value,
-    "Deliverables": document.getElementById("ev_deliverables").value,
-    "Promotion Plan": document.getElementById("ev_promo").value,
-    "Budget/Support Required": document.getElementById("ev_budget").value,
-    "Status": document.getElementById("ev_status").value,
-    "Notes": document.getElementById("ev_notes").value
-  };
-
-  return {
-    title: p["Event Name"],
-    start: p.Date,
-    extendedProps: p,
-    color: buildColorForCategory(p.Category)
-  };
+  const p={},ids=["Event Name","Date","Time","Category","Venue","Organizer","Stakeholders","Deliverables","Promotion Plan","Budget/Support Required","Status","Notes"];
+  const map={"Event Name":"ev_name","Date":"ev_date","Time":"ev_time","Category":"ev_category","Venue":"ev_venue","Organizer":"ev_organizer","Stakeholders":"ev_stakeholders","Deliverables":"ev_deliverables","Promotion Plan":"ev_promo","Budget/Support Required":"ev_budget","Status":"ev_status","Notes":"ev_notes"};
+  ids.forEach(k=>p[k]=document.getElementById(map[k]).value);
+  return {title:p["Event Name"],start:p.Date,extendedProps:p,color:buildColor(p.Category)};
 }
 
-async function commitNewEventToCsv(token, csvPath){
-  const apiUrl = `https://api.github.com/repos/${config.github_user}/${config.github_repo}/contents/${csvPath}`;
-  const headers = { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' };
-
-  const res = await fetch(apiUrl, { headers });
-  const js = await res.json();
-  const sha = js.sha;
-  const content = atob(js.content.replace(/\n/g, ""));
-
-  const evt = readForm();
-
-  const sanitize = v => String(v||"").replace(/"/g,'""');
-
-  const row = [
-    evt.extendedProps["Event Name"],
-    evt.extendedProps["Category"],
-    evt.extendedProps["Date"],
-    evt.extendedProps["Time"],
-    evt.extendedProps["Venue"],
-    evt.extendedProps["Organizer"],
-    evt.extendedProps["Stakeholders"],
-    evt.extendedProps["Deliverables"],
-    evt.extendedProps["Promotion Plan"],
-    evt.extendedProps["Budget/Support Required"],
-    evt.extendedProps["Status"],
-    evt.extendedProps["Notes"]
-  ].map(x=> `"${sanitize(x)}"`).join(",");
-
-  const newContent = content.trim() + "\n" + row + "\n";
-  const body = {
-    message: `Add event: ${evt.extendedProps["Event Name"]}`,
-    content: btoa(unescape(encodeURIComponent(newContent))),
-    sha: sha,
-    branch: config.branch
-  };
-
-  const upd = await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(body) });
-  if(!upd.ok) throw new Error("CSV update failed");
+/* ICS + Mermaid stubs */
+function eventsToIcs(ev){
+  let t="BEGIN:VCALENDAR\nVERSION:2.0\n";
+  ev.forEach(e=>{t+=`BEGIN:VEVENT\nSUMMARY:${e.title}\nDTSTART:${e.start.replace(/-/g,"")}T000000\nEND:VEVENT\n`;});
+  return t+"END:VCALENDAR";
+}
+function buildMermaidGantt(ev){
+  let t="```mermaid\ngantt\ndateFormat YYYY-MM-DD\n";
+  ev.forEach(e=>t+=`"${e.title}" : ${e.extendedProps.Date}, 1d\n`);
+  return t+"```\n";
 }
 
-window.addEventListener('load', ()=> buildUI());
+/* Init */
+window.onload=async()=>{
+  const sel=document.getElementById("yearSelect");
+  config.csv_paths.forEach(p=>{
+    const y=p.match(/\d{4}/)[0];
+    sel.innerHTML+=`<option value="${p}">${y}</option>`;
+  });
+  sel.value=config.csv_paths.find(p=>p.includes(config.default_year));
+
+  async function loadYear(){
+    const data=await loadCsv(sel.value);
+    allEvents=data.filter(r=>r.Date&&r["Event Name"]).map(r=>({title:r["Event Name"],start:r.Date,extendedProps:r,color:buildColor(r.Category)}));
+    legend();
+    refresh();
+  }
+
+  calendar=new FullCalendar.Calendar(document.getElementById("calendar"),{initialView:"dayGridMonth"});
+  calendar.render();
+
+  document.getElementById("toggleView").onclick=()=>{
+    const c=document.getElementById("calendar"),t=document.getElementById("tableView");
+    if(c.style.display==="none"){c.style.display="";t.style.display="none";}else{c.style.display="none";t.style.display="";}
+  };
+
+  ["searchBox","categoryFilter","organizerFilter"].forEach(id=>document.getElementById(id).oninput=refresh);
+  document.getElementById("openAdd").onclick=()=>document.getElementById("addForm").style.display="";
+  document.getElementById("closeAdd").onclick=()=>document.getElementById("addForm").style.display="none";
+  document.getElementById("saveLocal").onclick=()=>{allEvents.push(readForm());refresh();};
+
+  document.getElementById("downloadIcs").onclick=()=>download("events.ics",eventsToIcs(filter()));
+  document.getElementById("downloadMermaid").onclick=()=>download("gantt.md",buildMermaidGantt(filter()));
+
+  await loadYear();
+  sel.onchange=loadYear;
+};
+
+function download(n,t){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t]));a.download=n;a.click();}
 </script>
-
-
 </body>
 </html>
