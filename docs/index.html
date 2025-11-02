@@ -94,7 +94,7 @@ input, select, textarea { padding:6px; border:1px solid #ccc; border-radius:4px;
   </div>
 </div>
 
-  <script>
+<script>
 const configUrl = "../config.json";
 let config = null;
 
@@ -121,7 +121,6 @@ function rawCsvUrl(path){
 let allEvents = [];
 let calendar = null;
 let categoryColors = {};
-
 const defaultColors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f"];
 
 function buildColorForCategory(cat){
@@ -149,9 +148,11 @@ function renderTable(events){
     container.innerHTML = "<div style='padding:12px'>No events</div>";
     return;
   }
+
   let html = `<table style='width:100%;border-collapse:collapse'>
   <thead><tr>
-  <th>Date</th><th>Event</th><th>Category</th><th>Time</th><th>Venue</th><th>Organizer</th><th>Status</th>
+  <th>Date</th><th>Event</th><th>Category</th><th>Time</th>
+  <th>Venue</th><th>Organizer</th><th>Status</th>
   </tr></thead><tbody>`;
 
   for(const e of events){
@@ -196,13 +197,13 @@ function populateFilters(events){
     if(p.Organizer) orgs.add(p.Organizer);
   });
 
-  const catSel = document.getElementById("categoryFilter");
-  catSel.innerHTML = '<option value="">All Categories</option>';
-  Array.from(cats).sort().forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
+  document.getElementById("categoryFilter").innerHTML =
+    '<option value="">All Categories</option>' +
+    Array.from(cats).sort().map(c=>`<option value="${c}">${c}</option>`).join("");
 
-  const orgSel = document.getElementById("organizerFilter");
-  orgSel.innerHTML = '<option value="">All Organizers</option>';
-  Array.from(orgs).sort().forEach(o => orgSel.innerHTML += `<option value="${o}">${o}</option>`);
+  document.getElementById("organizerFilter").innerHTML =
+    '<option value="">All Organizers</option>' +
+    Array.from(orgs).sort().map(o=>`<option value="${o}">${o}</option>`).join("");
 }
 
 async function loadCsvForYear(path){
@@ -212,118 +213,111 @@ async function loadCsvForYear(path){
       const txt = await r.text();
       return Papa.parse(txt, {header:true, skipEmptyLines:true}).data;
     }
-    throw new Error("relative fetch failed");
+    throw new Error("relative load fail");
   }catch(e){
     const url = rawCsvUrl(path);
     const r2 = await fetch(url);
-    if(!r2.ok) throw new Error("failed to fetch CSV at " + url);
+    if(!r2.ok) throw new Error("Fetch CSV failed " + url);
     const txt2 = await r2.text();
     return Papa.parse(txt2, {header:true, skipEmptyLines:true}).data;
   }
-}
+} // ✅ CLOSED properly
 
 async function buildUI(){
   await loadConfig();
 
   const yearSel = document.getElementById("yearSelect");
   yearSel.innerHTML = "";
-
-  for(const p of config.csv_paths){
-    const year = (p.match(/(\d{4})/)||[])[0] || p;
+  config.csv_paths.forEach(p=>{
+    const yr = (p.match(/(\d{4})/)||[])[0] || p;
     const opt = document.createElement("option");
     opt.value = p;
-    opt.text = year;
+    opt.text = yr;
     yearSel.appendChild(opt);
-  }
+  });
 
-  const def = config.csv_paths.find(p=>p.includes(config.default_year)) || config.csv_paths[0];
-  yearSel.value = def;
+  yearSel.value = config.csv_paths.find(p=>p.includes(config.default_year));
 
   async function reload(){
     const path = yearSel.value;
     const data = await loadCsvForYear(path);
-    allEvents = data
-      .filter(r=> r.Date && r["Event Name"])
-      .map(r=> ({
-        title: r["Event Name"],
-        start: r.Date,
-        extendedProps: r,
-        color: buildColorForCategory(r.Category)
-      }));
+
+    allEvents = data.filter(r=> r.Date && r["Event Name"]).map(r=> ({
+      title: r["Event Name"],
+      start: r.Date,
+      extendedProps: r,
+      color: buildColorForCategory(r.Category)
+    }));
 
     renderLegend();
     populateFilters(allEvents);
     refreshViews();
   }
 
+  // UI Handlers
   yearSel.addEventListener("change", reload);
-  document.getElementById("searchBox").addEventListener("input", refreshViews);
-  document.getElementById("categoryFilter").addEventListener("change", refreshViews);
-  document.getElementById("organizerFilter").addEventListener("change", refreshViews);
+  ["searchBox","categoryFilter","organizerFilter"].forEach(id=>{
+    document.getElementById(id).addEventListener("input", ()=> refreshViews());
+  });
 
-  document.getElementById("toggleView").addEventListener("click", ()=>{
+  document.getElementById("toggleView").addEventListener("click",()=>{
     const cv = document.getElementById("calendar");
     const tv = document.getElementById("tableView");
-    if(cv.style.display === "none"){
-      cv.style.display = "";
-      tv.style.display = "none";
+    if(cv.style.display==="none"){
+      cv.style.display="";
+      tv.style.display="none";
       document.getElementById("toggleView").innerText="Switch to Table";
     }else{
-      cv.style.display = "none";
-      tv.style.display = "";
+      cv.style.display="none";
+      tv.style.display="";
       document.getElementById("toggleView").innerText="Switch to Calendar";
     }
   });
 
-  document.getElementById("openAdd").addEventListener("click", ()=> 
-    document.getElementById("addForm").style.display = ""
-  );
+  document.getElementById("openAdd").addEventListener("click",()=> document.getElementById("addForm").style.display="");
+  document.getElementById("closeAdd").addEventListener("click",()=> document.getElementById("addForm").style.display="none");
 
-  document.getElementById("closeAdd").addEventListener("click", ()=> 
-    document.getElementById("addForm").style.display = "none"
-  );
-
-  document.getElementById("saveLocal").addEventListener("click", ()=>{
+  document.getElementById("saveLocal").addEventListener("click",()=>{
     const e = readForm();
     allEvents.push(e);
     refreshViews();
-    alert("Added locally (not saved to CSV). Use Commit to GitHub to persist.");
+    alert("Added locally. Use Commit to GitHub to persist.");
   });
 
-  document.getElementById("saveGit").addEventListener("click", async ()=>{
+  document.getElementById("saveGit").addEventListener("click",async ()=>{
     const token = document.getElementById("gh_token").value.trim();
-    if(!token){
-      alert("Provide GitHub token or add locally.");
-      return;
-    }
-    try{
-      await commitNewEventToCsv(token, yearSel.value);
-      alert("Committed to GitHub (CSV updated). Refreshing...");
-      setTimeout(()=> location.reload(), 1500);
-    }catch(err){
-      alert("Commit failed: " + err.message);
-    }
+    if(!token){ alert("Enter GitHub token"); return; }
+    await commitNewEventToCsv(token, yearSel.value);
+    alert("Committed. Reloading...");
+    setTimeout(()=> location.reload(),1200);
+  });
+
+  document.getElementById("downloadIcs").addEventListener("click",()=>{
+    const evs = applyFilters(allEvents);
+    downloadText("events.ics", eventsToIcs(evs));
+  });
+
+  document.getElementById("downloadMermaid").addEventListener("click",()=>{
+    const evs = applyFilters(allEvents);
+    downloadText("events-gantt.md", buildMermaidGantt(evs));
   });
 
   await reload();
 
   calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
     initialView: "dayGridMonth",
-    events: [],
-    eventClick: info => {
+    events: allEvents,
+    eventClick: info=>{
       const p = info.event.extendedProps || {};
-      const body = [
+      alert([
         "Event: " + info.event.title,
-        "Date: " + (p.Date || info.event.startStr),
-        "Time: " + (p.Time || ""),
-        "Category: " + (p.Category || ""),
-        "Venue: " + (p.Venue || ""),
-        "Organizer: " + (p.Organizer || ""),
-        "Stakeholders: " + (p.Stakeholders || ""),
-        "Status: " + (p.Status || ""),
-        "Notes: " + (p.Notes || "")
-      ].join("\n");
-      alert(body);
+        "Date: " + p.Date,
+        "Time: " + (p.Time||""),
+        "Category: " + (p.Category||""),
+        "Venue: " + (p.Venue||""),
+        "Organizer: " + (p.Organizer||""),
+        "Notes: " + (p.Notes||"")
+      ].join("\n"));
     }
   });
 
@@ -333,14 +327,7 @@ async function buildUI(){
 function refreshViews(){
   const filtered = applyFilters(allEvents);
   calendar.removeAllEvents();
-  filtered.forEach(e=>{
-    calendar.addEvent({
-      title: e.title,
-      start: e.start,
-      extendedProps: e.extendedProps,
-      color: e.color
-    });
-  });
+  filtered.forEach(e=> calendar.addEvent(e));
   renderTable(filtered);
 }
 
@@ -353,9 +340,13 @@ function readForm(){
     "Venue": document.getElementById("ev_venue").value,
     "Organizer": document.getElementById("ev_organizer").value,
     "Stakeholders": document.getElementById("ev_stakeholders").value,
+    "Deliverables": document.getElementById("ev_deliverables").value,
+    "Promotion Plan": document.getElementById("ev_promo").value,
+    "Budget/Support Required": document.getElementById("ev_budget").value,
     "Status": document.getElementById("ev_status").value,
     "Notes": document.getElementById("ev_notes").value
   };
+
   return {
     title: p["Event Name"],
     start: p.Date,
@@ -368,46 +359,40 @@ async function commitNewEventToCsv(token, csvPath){
   const apiUrl = `https://api.github.com/repos/${config.github_user}/${config.github_repo}/contents/${csvPath}`;
   const headers = { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' };
 
-  const r = await fetch(apiUrl, { headers });
-  if(!r.ok) throw new Error("Failed to fetch file from GitHub API: " + r.statusText);
-
-  const js = await r.json();
+  const res = await fetch(apiUrl, { headers });
+  const js = await res.json();
   const sha = js.sha;
   const content = atob(js.content.replace(/\n/g, ""));
 
   const evt = readForm();
 
-  const sanitize = v => (!v ? "" : String(v).replace(/"/g,'""'));
+  const sanitize = v => String(v||"").replace(/"/g,'""');
 
-  const newRow = [
-    sanitize(evt.extendedProps["Event Name"]),
-    sanitize(evt.extendedProps["Date"]),
-    sanitize(evt.extendedProps["Time"]),
-    sanitize(evt.extendedProps["Category"]),
-    sanitize(evt.extendedProps["Venue"]),
-    sanitize(evt.extendedProps["Organizer"]),
-    sanitize(evt.extendedProps["Stakeholders"]),
-    sanitize(evt.extendedProps["Status"]),
-    sanitize(evt.extendedProps["Notes"])
-  ].map(x => `"${x}"`).join(",");
+  const row = [
+    evt.extendedProps["Event Name"],
+    evt.extendedProps["Category"],
+    evt.extendedProps["Date"],
+    evt.extendedProps["Time"],
+    evt.extendedProps["Venue"],
+    evt.extendedProps["Organizer"],
+    evt.extendedProps["Stakeholders"],
+    evt.extendedProps["Deliverables"],
+    evt.extendedProps["Promotion Plan"],
+    evt.extendedProps["Budget/Support Required"],
+    evt.extendedProps["Status"],
+    evt.extendedProps["Notes"]
+  ].map(x=> `"${sanitize(x)}"`).join(",");
 
-  const updated = content.trim() + "\n" + newRow;
-  const b64 = btoa(updated);
-
+  const newContent = content.trim() + "\n" + row + "\n";
   const body = {
     message: `Add event: ${evt.extendedProps["Event Name"]}`,
-    content: b64,
+    content: btoa(unescape(encodeURIComponent(newContent))),
     sha: sha,
     branch: config.branch
   };
 
-  const wr = await fetch(apiUrl, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if(!wr.ok) throw new Error("GitHub update failed: " + wr.statusText);
+  const upd = await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(body) });
+  if(!upd.ok) throw new Error("CSV update failed");
 }
 
 window.addEventListener('load', ()=> buildUI());
