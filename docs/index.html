@@ -94,10 +94,10 @@ input, select, textarea { padding:6px; border:1px solid #ccc; border-radius:4px;
   </div>
 </div>
 
-
-<script>
+  <script>
 const configUrl = "../config.json";
 let config = null;
+
 async function loadConfig(){
   try{
     const res = await fetch(configUrl);
@@ -113,9 +113,15 @@ async function loadConfig(){
     };
   }
 }
-function rawCsvUrl(path){ return `https://raw.githubusercontent.com/${config.github_user}/${config.github_repo}/${config.branch}/${path}`; }
 
-let allEvents = []; let calendar = null; let categoryColors = {};
+function rawCsvUrl(path){
+  return `https://raw.githubusercontent.com/${config.github_user}/${config.github_repo}/${config.branch}/${path}`;
+}
+
+let allEvents = [];
+let calendar = null;
+let categoryColors = {};
+
 const defaultColors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f"];
 
 function buildColorForCategory(cat){
@@ -125,22 +131,50 @@ function buildColorForCategory(cat){
   categoryColors[cat] = defaultColors[idx];
   return categoryColors[cat];
 }
-function renderLegend(){ const legend = document.getElementById("legend"); legend.innerHTML = ""; for(const k of Object.keys(categoryColors)){ const item = document.createElement("div"); item.className="legend-item"; item.innerHTML = `<div class="legend-swatch" style="background:${categoryColors[k]}"></div><div>${k}</div>`; legend.appendChild(item);} }
+
+function renderLegend(){
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "";
+  for(const k of Object.keys(categoryColors)){
+    const item = document.createElement("div");
+    item.className="legend-item";
+    item.innerHTML = `<div class="legend-swatch" style="background:${categoryColors[k]}"></div><div>${k}</div>`;
+    legend.appendChild(item);
+  }
+}
+
 function renderTable(events){
   const container = document.getElementById("tableContent");
-  if(events.length===0){ container.innerHTML = "<div style='padding:12px'>No events</div>"; return; }
-  let html = "<table style='width:100%;border-collapse:collapse'><thead><tr><th>Date</th><th>Event</th><th>Category</th><th>Time</th><th>Venue</th><th>Organizer</th><th>Status</th></tr></thead><tbody>";
+  if(events.length===0){
+    container.innerHTML = "<div style='padding:12px'>No events</div>";
+    return;
+  }
+  let html = `<table style='width:100%;border-collapse:collapse'>
+  <thead><tr>
+  <th>Date</th><th>Event</th><th>Category</th><th>Time</th><th>Venue</th><th>Organizer</th><th>Status</th>
+  </tr></thead><tbody>`;
+
   for(const e of events){
     const p = e.extendedProps || {};
-    html += `<tr class="event-row"><td>${p.Date || e.startStr || ""}</td><td>${e.title}</td><td>${p.Category||""}</td><td>${p.Time||""}</td><td>${p.Venue||""}</td><td>${p.Organizer||""}</td><td>${p.Status||""}</td></tr>`;
+    html += `<tr class="event-row">
+      <td>${p.Date || e.startStr || ""}</td>
+      <td>${e.title}</td>
+      <td>${p.Category||""}</td>
+      <td>${p.Time||""}</td>
+      <td>${p.Venue||""}</td>
+      <td>${p.Organizer||""}</td>
+      <td>${p.Status||""}</td>
+    </tr>`;
   }
   html += "</tbody></table>";
   container.innerHTML = html;
 }
+
 function applyFilters(events){
   const txt = document.getElementById("searchBox").value.toLowerCase();
   const cat = document.getElementById("categoryFilter").value;
   const org = document.getElementById("organizerFilter").value;
+
   return events.filter(e => {
     const p = e.extendedProps || {};
     if(cat && (p.Category||"") !== cat) return false;
@@ -152,41 +186,131 @@ function applyFilters(events){
     return true;
   });
 }
+
 function populateFilters(events){
-  const cats = new Set(); const orgs = new Set();
-  events.forEach(e=>{ const p=e.extendedProps||{}; if(p.Category) cats.add(p.Category); if(p.Organizer) orgs.add(p.Organizer); });
-  const catSel = document.getElementById("categoryFilter"); catSel.innerHTML = '<option value="">All Categories</option>'; for(const c of Array.from(cats).sort()) catSel.innerHTML += `<option value="${c}">${c}</option>`;
-  const orgSel = document.getElementById("organizerFilter"); orgSel.innerHTML = '<option value="">All Organizers</option>'; for(const o of Array.from(orgs).sort()) orgSel.innerHTML += `<option value="${o}">${o}</option>`;
+  const cats = new Set();
+  const orgs = new Set();
+  events.forEach(e=>{
+    const p=e.extendedProps||{};
+    if(p.Category) cats.add(p.Category);
+    if(p.Organizer) orgs.add(p.Organizer);
+  });
+
+  const catSel = document.getElementById("categoryFilter");
+  catSel.innerHTML = '<option value="">All Categories</option>';
+  Array.from(cats).sort().forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
+
+  const orgSel = document.getElementById("organizerFilter");
+  orgSel.innerHTML = '<option value="">All Organizers</option>';
+  Array.from(orgs).sort().forEach(o => orgSel.innerHTML += `<option value="${o}">${o}</option>`);
 }
-function eventsToIcs(events, title="Events Export"){
-  const lines = []; lines.push("BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Event Calendar Planner//EN");
-  events.forEach((e,i)=>{ const p = e.extendedProps || {}; const uid = `event-${i}-${(p.Date||e.startStr||"").replace(/[^0-9]/g,"")}`; lines.push("BEGIN:VEVENT"); lines.push("UID:" + uid); const dt = (p.Date || e.startStr || ""); if(/\d{4}-\d{2}-\d{2}/.test(dt) && !(p.Time)){ lines.push("DTSTART;VALUE=DATE:" + dt.replace(/-/g,"")); lines.push("DTEND;VALUE=DATE:" + dt.replace(/-/g,"")); } else { let dtstr = dt.replace(/[-:]/g,"").replace(" ","T"); if(!dtstr.includes("T") && p.Time){ dtstr = dt.replace(/-/g,"") + "T" + p.Time.replace(/:/g,"") + "00"; } lines.push("DTSTART:" + dtstr + "Z"); lines.push("DTEND:" + dtstr + "Z"); } lines.push("SUMMARY:" + (e.title || "")); const desc = [ p.Venue||"", p.Organizer||"", p.Notes||"" ].filter(Boolean).join(" - "); if(desc) lines.push("DESCRIPTION:" + desc); lines.push("END:VEVENT"); });
-  lines.push("END:VCALENDAR"); return lines.join("\r\n");
-}
-function downloadText(filename, text){ const blob = new Blob([text], {type:"text/plain;charset=utf-8"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000); }
+
 async function loadCsvForYear(path){
-  try{ const r = await fetch(path); if(r.ok){ const txt = await r.text(); return Papa.parse(txt, {header:true, skipEmptyLines:true}).data; } throw new Error("relative fetch failed"); }catch(e){ const url = rawCsvUrl(path); const r2 = await fetch(url); if(!r2.ok) throw new Error("failed to fetch CSV at " + url); const txt2 = await r2.text(); return Papa.parse(txt2, {header:true, skipEmptyLines:true}).data; }
+  try{
+    const r = await fetch(path);
+    if(r.ok){
+      const txt = await r.text();
+      return Papa.parse(txt, {header:true, skipEmptyLines:true}).data;
+    }
+    throw new Error("relative fetch failed");
+  }catch(e){
+    const url = rawCsvUrl(path);
+    const r2 = await fetch(url);
+    if(!r2.ok) throw new Error("failed to fetch CSV at " + url);
+    const txt2 = await r2.text();
+    return Papa.parse(txt2, {header:true, skipEmptyLines:true}).data;
+  }
+}
+
 async function buildUI(){
   await loadConfig();
-  const yearSel = document.getElementById("yearSelect"); yearSel.innerHTML = ""; for(const p of config.csv_paths){ const year = (p.match(/(\d{4})/)||[])[0] || p; const opt = document.createElement("option"); opt.value = p; opt.text = year; yearSel.appendChild(opt); }
-  const def = config.csv_paths.find(p=>p.includes(config.default_year)) || config.csv_paths[0]; yearSel.value = def;
-  async function reload(){ const path = yearSel.value; const data = await loadCsvForYear(path); allEvents = data.filter(r=> r.Date && r["Event Name"]).map(r=> ({ title: r["Event Name"], start: r.Date, extendedProps: r, color: buildColorForCategory(r.Category) })); renderLegend(); populateFilters(allEvents); refreshViews(); }
+
+  const yearSel = document.getElementById("yearSelect");
+  yearSel.innerHTML = "";
+
+  for(const p of config.csv_paths){
+    const year = (p.match(/(\d{4})/)||[])[0] || p;
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.text = year;
+    yearSel.appendChild(opt);
+  }
+
+  const def = config.csv_paths.find(p=>p.includes(config.default_year)) || config.csv_paths[0];
+  yearSel.value = def;
+
+  async function reload(){
+    const path = yearSel.value;
+    const data = await loadCsvForYear(path);
+    allEvents = data
+      .filter(r=> r.Date && r["Event Name"])
+      .map(r=> ({
+        title: r["Event Name"],
+        start: r.Date,
+        extendedProps: r,
+        color: buildColorForCategory(r.Category)
+      }));
+
+    renderLegend();
+    populateFilters(allEvents);
+    refreshViews();
+  }
+
   yearSel.addEventListener("change", reload);
-  document.getElementById("searchBox").addEventListener("input", ()=> refreshViews());
-  document.getElementById("categoryFilter").addEventListener("change", ()=> refreshViews());
-  document.getElementById("organizerFilter").addEventListener("change", ()=> refreshViews());
-  document.getElementById("toggleView").addEventListener("click", ()=>{ const cv = document.getElementById("calendar"); const tv = document.getElementById("tableView"); if(cv.style.display === "none"){ cv.style.display = ""; tv.style.display = "none"; document.getElementById("toggleView").innerText="Switch to Table"; } else { cv.style.display = "none"; tv.style.display = ""; document.getElementById("toggleView").innerText="Switch to Calendar"; } });
-  document.getElementById("openAdd").addEventListener("click", ()=> document.getElementById("addForm").style.display = "");
-  document.getElementById("closeAdd").addEventListener("click", ()=> document.getElementById("addForm").style.display = "none");
-  document.getElementById("saveLocal").addEventListener("click", ()=>{ const e = readForm(); allEvents.push(e); refreshViews(); alert("Added locally (not saved to CSV). Use Commit to GitHub to persist."); });
-  document.getElementById("saveGit").addEventListener("click", async ()=>{ const token = document.getElementById("gh_token").value.trim(); if(!token){ alert("Provide GitHub token or add locally."); return; } try{ await commitNewEventToCsv(token, yearSel.value); alert("Committed to GitHub (CSV updated). Refreshing..."); setTimeout(()=> location.reload(), 1500); }catch(err){ alert("Commit failed: " + err.message); } });
-  document.getElementById("downloadIcs").addEventListener("click", ()=>{ const evs = applyFilters(allEvents); const ics = eventsToIcs(evs, "Exported Events"); downloadText("events.ics", ics); });
-  document.getElementById("downloadMermaid").addEventListener("click", ()=>{ const evs = applyFilters(allEvents); const md = buildMermaidGantt(evs); downloadText("events-gantt.md", md); });
+  document.getElementById("searchBox").addEventListener("input", refreshViews);
+  document.getElementById("categoryFilter").addEventListener("change", refreshViews);
+  document.getElementById("organizerFilter").addEventListener("change", refreshViews);
+
+  document.getElementById("toggleView").addEventListener("click", ()=>{
+    const cv = document.getElementById("calendar");
+    const tv = document.getElementById("tableView");
+    if(cv.style.display === "none"){
+      cv.style.display = "";
+      tv.style.display = "none";
+      document.getElementById("toggleView").innerText="Switch to Table";
+    }else{
+      cv.style.display = "none";
+      tv.style.display = "";
+      document.getElementById("toggleView").innerText="Switch to Calendar";
+    }
+  });
+
+  document.getElementById("openAdd").addEventListener("click", ()=> 
+    document.getElementById("addForm").style.display = ""
+  );
+
+  document.getElementById("closeAdd").addEventListener("click", ()=> 
+    document.getElementById("addForm").style.display = "none"
+  );
+
+  document.getElementById("saveLocal").addEventListener("click", ()=>{
+    const e = readForm();
+    allEvents.push(e);
+    refreshViews();
+    alert("Added locally (not saved to CSV). Use Commit to GitHub to persist.");
+  });
+
+  document.getElementById("saveGit").addEventListener("click", async ()=>{
+    const token = document.getElementById("gh_token").value.trim();
+    if(!token){
+      alert("Provide GitHub token or add locally.");
+      return;
+    }
+    try{
+      await commitNewEventToCsv(token, yearSel.value);
+      alert("Committed to GitHub (CSV updated). Refreshing...");
+      setTimeout(()=> location.reload(), 1500);
+    }catch(err){
+      alert("Commit failed: " + err.message);
+    }
+  });
+
   await reload();
+
   calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
     initialView: "dayGridMonth",
     events: [],
-    eventClick: info=>{
+    eventClick: info => {
       const p = info.event.extendedProps || {};
       const body = [
         "Event: " + info.event.title,
@@ -196,23 +320,52 @@ async function buildUI(){
         "Venue: " + (p.Venue || ""),
         "Organizer: " + (p.Organizer || ""),
         "Stakeholders: " + (p.Stakeholders || ""),
-        "Deliverables: " + (p.Deliverables || ""),
-        "Promotion Plan: " + (p['Promotion Plan'] || ""),
-        "Budget/Support: " + (p['Budget/Support Required'] || ""),
         "Status: " + (p.Status || ""),
         "Notes: " + (p.Notes || "")
       ].join("\n");
       alert(body);
     }
   });
+
   calendar.render();
 }
-function refreshViews(){ const filtered = applyFilters(allEvents); calendar.removeAllEvents(); filtered.forEach(e=>{ calendar.addEvent({ title: e.title, start: e.start, extendedProps: e.extendedProps, color: e.color }); }); renderTable(filtered); }
-function readForm(){ const p = { "Event Name": document.getElementById("ev_name").value, "Date": document.getElementById("ev_date").value, "Time": document.getElementById("ev_time").value, "Category": document.getElementById("ev_category").value, "Venue": document.getElementById("ev_venue").value, "Organizer": document.getElementById("ev_organizer").value, "Stakeholders": document.getElementById("ev_stakeholders").value, "Status": document.getElementById("ev_status").value, "Notes": document.getElementById("ev_notes").value }; const evt = { title: p["Event Name"], start: p.Date, extendedProps: p, color: buildColorForCategory(p.Category) }; return evt; }
-function buildMermaidGantt(events){ let md = "```mermaid\ngantt\ndateFormat  YYYY-MM-DD\naxisFormat  %d-%b\n\n"; events.forEach((e,i)=>{ const p=e.extendedProps||{}; const start = p.Date || e.startStr || ""; const name = (e.title || "Event").replace(/\|/g," "); md += `section ${p.Category||'General'}\n  ${name} :a${i}, ${start}, 1d\n`; }); md += "```\n"; return md; }
+
+function refreshViews(){
+  const filtered = applyFilters(allEvents);
+  calendar.removeAllEvents();
+  filtered.forEach(e=>{
+    calendar.addEvent({
+      title: e.title,
+      start: e.start,
+      extendedProps: e.extendedProps,
+      color: e.color
+    });
+  });
+  renderTable(filtered);
+}
+
+function readForm(){
+  const p = {
+    "Event Name": document.getElementById("ev_name").value,
+    "Date": document.getElementById("ev_date").value,
+    "Time": document.getElementById("ev_time").value,
+    "Category": document.getElementById("ev_category").value,
+    "Venue": document.getElementById("ev_venue").value,
+    "Organizer": document.getElementById("ev_organizer").value,
+    "Stakeholders": document.getElementById("ev_stakeholders").value,
+    "Status": document.getElementById("ev_status").value,
+    "Notes": document.getElementById("ev_notes").value
+  };
+  return {
+    title: p["Event Name"],
+    start: p.Date,
+    extendedProps: p,
+    color: buildColorForCategory(p.Category)
+  };
+}
+
 async function commitNewEventToCsv(token, csvPath){
-  const path = csvPath;
-  const apiUrl = `https://api.github.com/repos/${config.github_user}/${config.github_repo}/contents/${path}`;
+  const apiUrl = `https://api.github.com/repos/${config.github_user}/${config.github_repo}/contents/${csvPath}`;
   const headers = { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' };
 
   const r = await fetch(apiUrl, { headers });
@@ -224,10 +377,7 @@ async function commitNewEventToCsv(token, csvPath){
 
   const evt = readForm();
 
-  const sanitize = v => {
-    if(!v) return "";
-    return String(v).replace(/"/g, '""');
-  };
+  const sanitize = v => (!v ? "" : String(v).replace(/"/g,'""'));
 
   const newRow = [
     sanitize(evt.extendedProps["Event Name"]),
@@ -260,9 +410,9 @@ async function commitNewEventToCsv(token, csvPath){
   if(!wr.ok) throw new Error("GitHub update failed: " + wr.statusText);
 }
 
-function str_replace_quotes(s){ return String(s||"").replace(/"/g,'""'); }
 window.addEventListener('load', ()=> buildUI());
 </script>
+
 
 </body>
 </html>
