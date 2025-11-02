@@ -1,0 +1,10 @@
+{
+  "github_user": "ramagururadhakrishnan",
+  "github_repo": "ramaguru-calendar",
+  "branch": "main",
+  "csv_paths": [
+    "data/2025-events.csv",
+    "data/2026-events.csv"
+  ],
+  "default_year": "2025"
+}
